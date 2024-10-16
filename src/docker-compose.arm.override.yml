@@ -1,0 +1,69 @@
+services:
+  ##############################################
+  #           Dapr placement service           #
+  ##############################################
+  placement:
+    platform: 'linux/arm64'
+
+  ##############################################
+  #                   RabbitMQ                 #
+  ##############################################
+  rabbitmq:
+    platform: 'linux/arm64'
+
+  ##############################################
+  #                   MongoDB                  #
+  ##############################################
+  mongo:
+    platform: 'linux/arm64'
+
+  mongo-express:
+    platform: 'linux/arm64'
+
+  ##############################################
+  #                   Zipkin                   #
+  ##############################################
+  zipkin:
+    platform: 'linux/arm64'
+
+  ###################################################
+  #  Workflows Worker Service + Dapr sidecar  #
+  ###################################################
+  tmpl-workflows-worker:
+    platform: 'linux/arm64'
+
+  tmpl-workflows-worker-dapr:
+    platform: 'linux/arm64'
+
+  ###################################################
+  #  Receipts Worker Service + Dapr sidecar  #
+  ###################################################
+  tmpl-receipts-worker:
+    platform: 'linux/arm64'
+
+  tmpl-receipts-worker-dapr:
+    platform: 'linux/arm64'
+
+  ###################################################
+  #  Insights Worker Service + Dapr sidecar  #
+  ###################################################
+  tmpl-upload-worker:
+    platform: 'linux/arm64'
+
+  tmpl-upload-worker-dapr:
+    platform: 'linux/arm64'
+
+  ###################################################
+  #  UI API + Dapr sidecar  #
+  ###################################################
+  tmpl-ui-api:
+    platform: 'linux/arm64'
+
+  tmpl-ui-api-dapr:
+    platform: 'linux/arm64'
+
+  ###################################################
+  #  UI
+  ###################################################
+  tmpl-ui:
+    platform: 'linux/arm64'

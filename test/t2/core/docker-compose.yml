@@ -1,0 +1,203 @@
+version: '3.8'
+
+x-daprdimage: &daprdimage
+  image: daprio/daprd:1.13.2
+  volumes:
+    - ../../../src/..dapr/components/:/components
+    - ../../../src/.dapr/configuration/:/configuration
+
+x-wiremockimage: &wiremockimage
+  image: sheyenrath/wiremock.net-alpine:1.5.53
+
+services:
+  ##############################################
+  #           Dapr placement service           #
+  ##############################################
+  placement:
+    image: daprio/dapr:1.13.2
+    container_name: placement-tmpl
+    command: ["./placement", "-port", "50006"]
+    ports:
+      - 50000:50006
+       
+  ##############################################
+  #                   RabbitMQ                 #
+  ##############################################
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq-tmpl
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping && rabbitmq-diagnostics -q status
+      interval: 30s
+      timeout: 30s
+      retries: 3
+    ports:
+      - 5672:5672
+      - 15672:15672
+
+  ##############################################
+  #                   MongoDB                  #
+  ##############################################
+  mongo:
+    image: mongo:7
+    container_name: mongo-tmpl
+    command: [--replSet, rs0, --bind_ip_all, --port, "27017"]
+    ports:
+      - 27017:27017
+    healthcheck:
+      test: test $$(mongosh --port 27017 --quiet --eval "try {rs.initiate({_id:'rs0',members:[{_id:0,host:\"mongo:27017\"}]})} catch(e) {rs.status().ok}") -eq 1
+      interval: 10s
+      start_period: 30s
+    volumes:
+      - mongodb-data:/data/keyfile
+
+  # mongo-express:
+  #   image: mongo-express:latest
+  #   container_name: mongo-express-tmpl
+  #   ports:
+  #     - "8081:8081"
+  #   environment:
+  #     ME_CONFIG_MONGODB_SERVER: mongo-tmpl
+  #   depends_on:
+  #     mongo:
+  #       condition: service_healthy
+
+  ##############################################
+  #                   Zipkin                   #
+  ##############################################
+  zipkin:
+    image: openzipkin/zipkin-slim
+    container_name: zipkin-tmpl
+    ports:
+      - 9411:9411
+
+  ###################################################
+  #         Test Harness + Dapr sidecar             #
+  ###################################################
+  tmpl-test-harness:
+    image: tmpl.com/imagefeed/tmpl/test-harness:dev
+    build:
+      context: ../../test-harness/
+      dockerfile: Dockerfile
+      tags:
+        - tmpl.com/imagefeed/tmpl/test-harness:dev
+    ports:
+      - "6010:8001"
+    environment:
+      - DEBUGGING=False
+    depends_on:
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  tmpl-test-harness-dapr:
+    <<: *daprdimage
+    command: [ "./daprd",
+      "--app-id", "tmpl-test-harness",
+      "--app-port", "8001",
+      "--placement-host-address", "placement:50006",
+      "--resources-path", "/components",
+      "--config", "/configuration/config.yaml" ]
+    depends_on:
+      - tmpl-test-harness
+    network_mode: service:tmpl-test-harness
+
+  ###################################################
+  #  Workflows Worker Service + Dapr sidecar  #
+  ###################################################
+  tmpl-workflows-worker:
+    image: tmpl.com/imagefeed/tmpl/workflows-worker:dev
+    build:
+      context: ../../../src/workflows-worker/
+      dockerfile: Dockerfile
+      tags:
+        - tmpl.com/imagefeed/tmpl/workflows-worker:dev
+    ports:
+      - "6006:8001"
+    environment:
+      - DEBUGGING=False
+    depends_on:
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  tmpl-workflows-worker-dapr:
+    <<: *daprdimage
+    command: [ "./daprd",
+      "--app-id", "tmpl-workflows-worker",
+      "--app-port", "8001",
+      "--placement-host-address", "placement:50006",
+      "--resources-path", "/components",
+      "--config", "/configuration/config.yaml" ]
+    depends_on:
+      - tmpl-workflows-worker
+    network_mode: service:tmpl-workflows-worker
+
+  ###################################################
+  #  Receipts Worker Service + Dapr sidecar  #
+  ###################################################
+  tmpl-receipts-worker:
+    image: tmpl.com/imagefeed/tmpl/receipts-worker:dev
+    build:
+      context: ../../../src/receipts-worker/
+      dockerfile: Dockerfile
+      tags:
+        - tmpl.com/imagefeed/tmpl/receipts-worker:dev
+    ports:
+      - "6007:8001"
+    environment:
+      - DEBUGGING=False
+    depends_on:
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  tmpl-receipts-worker-dapr:
+    <<: *daprdimage
+    command: [ "./daprd",
+      "--app-id", "tmpl-receipts-worker",
+      "--app-port", "8001",
+      "--placement-host-address", "placement:50006",
+      "--resources-path", "/components",
+      "--config", "/configuration/config.yaml" ]
+    depends_on:
+      - tmpl-receipts-worker
+    network_mode: service:tmpl-receipts-worker
+
+  ###################################################
+  #       Upload Worker Service + Dapr sidecar      #
+  ###################################################
+  tmpl-upload-worker:
+    image: tmpl.com/imagefeed/tmpl/upload-worker:dev
+    build:
+      context: ../../../src/upload-worker/
+      dockerfile: Dockerfile
+      tags:
+        - tmpl.com/imagefeed/tmpl/upload-worker:dev
+    ports:
+      - "6004:8001"
+    environment:
+      - DEBUGGING=False
+    depends_on:
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  tmpl-upload-worker-dapr:
+    <<: *daprdimage
+    command: [ "./daprd",
+      "--app-id", "tmpl-upload-worker",
+      "--app-port", "8001",
+      "--placement-host-address", "placement:50006",
+      "--resources-path", "/components",
+      "--config", "/configuration/config.yaml" ]
+    depends_on:
+      - tmpl-upload-worker
+    network_mode: service:tmpl-upload-worker
+
+volumes:
+  mongodb-data:
